@@ -23,6 +23,9 @@ If you want to test different topology, you can add a subclass of Model to local
     ModelL2LossWithoutDropoutLReluAttentionPhoneme is x-vector with PUSTDNN without phoneme classification.
     ModelL2LossWithoutDropoutLReluAttentionPhonemeCluster is x-vector with PUSTDNN and phoneme classification.
     ModelL2LossWithoutDropoutLReluAttentionPhonemeCluster2layer is x-vector with PUSTDNN and phoneme classification. The first two TDNN layers are replaced with PUSTDNN layers.
+    ModelL2LossWithoutDropoutLReluAttentionPhonemeClusterPequal has the same structure as ModelL2LossWithoutDropoutLReluAttentionPhonemeCluster. 
+    The only difference is in the phoneme unit probability. The probabilities of all frames belonging to all phoneme units are set to be the same. 
+
 
 
 
