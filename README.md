@@ -3,7 +3,7 @@ This is a phoneme-unit-specific TDNN (PUSTDNN) based x-vector system for speaker
 
 It is modified based on the Tensorflow implementation of x-vector topology proposed by David Snyder in Deep Neural Network Embeddings for Text-Independent Speaker Verfication: https://github.com/hsn-zeinali/x-vector-kaldi-tf.
 
-We use phoneme recognizer from Brno University of Technology to get phoneme probability for SUSTDNN construcation. https://speech.fit.vutbr.cz/software/but-phonexia-bottleneck-feature-extractor.
+We use phoneme recognizer from Brno University of Technology to get phoneme probability for the PUSTDNN construcation. https://speech.fit.vutbr.cz/software/but-phonexia-bottleneck-feature-extractor.
 
 
 
