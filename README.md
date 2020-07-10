@@ -9,12 +9,11 @@ We use phoneme recognizer from Brno University of Technology to get phoneme prob
 
 
 ## Usage
-
-For using the codes, you first should install Kaldi and clone the codes in egs/sre16 (or somewhere else that you want, by changing the symlinks to proper positions). 
-
-Move apply-cmvn-sliding-23dim.cc to kaldi⁩/⁨src⁩/featbin⁩/ and make it.
-
 There are two folders "SRE10" and "Fisher". SRE10 is for the experiments on SRE 2010 dataset. Fisher is for the experiments on Fisher dataset.
+
+For using the codes, you first should install Kaldi and move apply-cmvn-sliding-23dim.cc to kaldi⁩/⁨src⁩/featbin⁩/ and make it.
+
+Then clone the two folders to egs/sre16 (or somewhere else that you want, by changing the symlinks to proper positions). 
 
 If you want to test different topology, you can add a subclass of Model to local/tf/models.py and overwrite the build_model function (in the file you can see several topologies). Then you just need to pass class name to local/tf/train_dnn.py by changing --tf-model-class in local/tf/run_xvector.sh.
 
