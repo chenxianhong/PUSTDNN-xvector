@@ -1,0 +1,19 @@
+  README FILE FOR LATTICE GENERATION
+======================================================
+
+This set of scripts and models allow for generating phoneme lattices using HTK tool HVite. It has the same functionality like BUT phoneme recognizer from 
+http://speech.fit.vutbr.cz/cs/software/phoneme-recognizer-based-long-temporal-context
+
+The main script is phnrec.sh with 2 parameters
+ 1) input posterior file in HTK feature file format
+ 2) output name for lattice and counts file
+
+example: phnrec.sh ../../example/example.post.fea  example
+this would generate 
+   - example.latt.gz with lattice 
+   - example.count.gz with phoneme counts from the lattice
+
+There are some script modifications needed mainly at the beggining of the script - especially setting the correct path for the binaries (HList, HVite, lattice-tool)
+
+All the models and configuration files were generated using init.sh
+
