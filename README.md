@@ -25,8 +25,10 @@ If you want to test different topology, you can add a subclass of Model to local
     ModelL2LossWithoutDropoutLReluAttentionPhonemeCluster2layer is x-vector with PUSTDNN and phoneme classification. The first two TDNN layers are replaced with PUSTDNN layers.
     ModelL2LossWithoutDropoutLReluAttentionPhonemeClusterPequal has the same structure as ModelL2LossWithoutDropoutLReluAttentionPhonemeCluster. 
     The only difference is in the phoneme unit probability. The probabilities of all frames belonging to all phoneme units are set to be the same. 
-
-
+	ModelL2LossWithoutDropoutLReluAttentionPhonemeMultitask is the multitask model.
+	ModelL2LossWithoutDropoutLReluAttentionPhonemeMultitaskPequal is the 'P_equal+multitask' model. 
+	ModelL2LossWithoutDropoutLReluAttentionPhonemeVector is the PV model.
+	
 
 
 ## Requirements
