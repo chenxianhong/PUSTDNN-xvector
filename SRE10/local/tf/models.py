@@ -2185,3 +2185,788 @@ class ModelL2LossWithoutDropoutLReluAttentionPhonemeCluster2layer(Model):
 
         if logger is not None:
             logger.info("Building finished.")
+
+
+
+
+
+class ModelL2LossWithoutDropoutLReluAttentionPhonemeMultitask(Model):  
+
+    def __init__(self):
+        super(ModelL2LossWithoutDropoutLReluAttentionPhonemeMultitask, self).__init__()
+
+    def build_model(self, num_classes, input_feature_dim, output_dir, logger=None):
+
+        layer_sizes = [512, 512, 512, 512, 6 * 512]
+        kernel_sizes = [5, 5, 7, 1, 1]
+        embedding_sizes = [512, 512]
+        beta = 0.0002
+        mfcc_dim=23
+
+        if logger is not None:
+            logger.info("Start building the model ...")
+
+        tf.reset_default_graph()
+        self.graph = tf.Graph()
+
+        with self.graph.as_default():
+
+            self.num_classes = num_classes
+
+            # placeholder for parameter
+            self.learning_rate = tf.placeholder(tf.float32, name="learning_rate")
+            self.dropout_keep_prob = tf.placeholder(tf.float32, name="dropout_keep_prob")
+            self.phase = tf.placeholder(tf.bool, name="phase")
+
+            # Placeholders for regular data
+            self.input_x = tf.placeholder(tf.float32, [None, None, input_feature_dim], name="input_x")
+            self.input_y = tf.placeholder(tf.float32, [None, num_classes], name="input_y")
+
+            
+            l2_loss = tf.constant(0.0)
+            l2_loss_phoneme = tf.constant(0.0)
+            h_share = self.input_x[:, :, 0:mfcc_dim]
+            poster=self.input_x[:, :, mfcc_dim:]
+            
+            
+            poster_temp=tf.gather(poster, indices=[0,33,34], axis=2)
+            posterior=tf.concat((tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2), tf.expand_dims(poster[:,:,1],axis=2)),axis=2)
+
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,2],axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[3,4,5,12,25], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[6,8,14], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[7,18], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[13,15,32,29], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            
+            poster_temp=tf.gather(poster, indices=[9,35,38,39], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+
+            poster_temp=tf.gather(poster, indices=[10,11], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,16],axis=2)),axis=2)
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,17],axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[19,26], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[20,37], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[21,23], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,22],axis=2)),axis=2)
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,24],axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[27,36], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,28],axis=2)),axis=2)
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,30],axis=2)),axis=2)
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,31],axis=2)),axis=2)
+           
+            
+            num_phoneme=posterior.shape[2].value
+            print(num_phoneme)
+            
+            
+            # Frame level TDNN Layer
+            prev_dim = mfcc_dim
+            for i, (kernel_size, layer_size) in enumerate(zip(kernel_sizes, layer_sizes)):
+                
+                if i == 0 or i==1 or i==2 or i==3:
+                #if i == 0 or i==1 or i==2:
+                #if i == 0 or i== 1:
+                
+                    with tf.variable_scope("frame_level_share-%s" % i):
+                        kernel_shape = [kernel_size, prev_dim, layer_size]
+                        w = tf.Variable(tf.truncated_normal(kernel_shape, stddev=0.1), name="w")
+                        b = tf.Variable(tf.constant(0.1, shape=[layer_size]), name="b")
+    
+                        conv = tf.nn.conv1d(h_share, w, stride=1, padding="SAME", name="conv-layer-%s" % i)
+                        h_share = tf.nn.bias_add(conv, b)
+
+                        # Apply nonlinearity and BN
+                        h_share = tf.nn.leaky_relu(h_share, alpha=0.2, name='lrelu')
+                        h_share = batch_norm_wrapper(h_share, decay=0.95, is_training=self.phase)
+
+                        prev_dim = layer_size
+                    
+                else:
+                    h=h_share
+                    h_phoneme = h_share
+                    prev_dim_phoneme = prev_dim
+                    with tf.variable_scope("frame_level_phoneme-%s" % i):
+                        kernel_shape = [kernel_size, prev_dim_phoneme, layer_size]
+                        w = tf.Variable(tf.truncated_normal(kernel_shape, stddev=0.1), name="w")
+                        b = tf.Variable(tf.constant(0.1, shape=[layer_size]), name="b")
+    
+                        conv = tf.nn.conv1d(h, w, stride=1, padding="SAME", name="conv-layer-%s" % i)
+                        h = tf.nn.bias_add(conv, b)
+
+                        # Apply nonlinearity and BN
+                        h = tf.nn.leaky_relu(h, alpha=0.2, name='lrelu')
+                        h = batch_norm_wrapper(h, decay=0.95, is_training=self.phase)
+
+                        prev_dim_phoneme = layer_size
+                
+                    with tf.variable_scope("frame_level_speaker-%s" % i):
+                        kernel_shape = [kernel_size, prev_dim, layer_size]
+                        w = tf.Variable(tf.truncated_normal(kernel_shape, stddev=0.1), name="w")
+                        b = tf.Variable(tf.constant(0.1, shape=[layer_size]), name="b")
+    
+                        conv = tf.nn.conv1d(h_phoneme, w, stride=1, padding="SAME", name="conv-layer-%s" % i)
+                        h_phoneme = tf.nn.bias_add(conv, b)
+
+                        # Apply nonlinearity and BN
+                        h_phoneme = tf.nn.leaky_relu(h_phoneme, alpha=0.2, name='lrelu')
+                        h_phoneme = batch_norm_wrapper(h_phoneme, decay=0.95, is_training=self.phase)
+
+                        prev_dim = layer_size
+
+            #### phoneme recognition network
+            # frame level DNN layers
+            for i, out_dim in enumerate(embedding_sizes):
+                with tf.variable_scope("phoneme_embed_layer-%s" % i):
+                    w = tf.Variable(tf.truncated_normal([1, prev_dim_phoneme, out_dim], stddev=0.1), name="w")
+                    b = tf.Variable(tf.constant(0.1, shape=[out_dim]), name="b")
+                    
+                    conv = tf.nn.conv1d(h_phoneme, w, stride=1, padding="SAME", name="conv-layer-%s" % i)
+                    h_phoneme = tf.nn.bias_add(conv, b)
+ 
+
+                    # Apply L2 loss
+                    if i == 0:
+                        l2_loss_phoneme += 0.1 * tf.nn.l2_loss(w)
+                        l2_loss_phoneme += 0.1 * tf.nn.l2_loss(b)
+                    else:
+                        l2_loss_phoneme += tf.nn.l2_loss(w)
+                        l2_loss_phoneme += tf.nn.l2_loss(b)
+
+                    h_phoneme = tf.nn.leaky_relu(h_phoneme, alpha=0.2, name='lrelu')
+                    h_phoneme = batch_norm_wrapper(h_phoneme, decay=0.95, is_training=self.phase)
+
+                    prev_dim_phoneme = out_dim
+
+            # Softmax
+            with tf.variable_scope("phoneme_output"):
+                w = tf.get_variable("w", shape=[1, prev_dim_phoneme, num_phoneme],
+                                    initializer=tf.contrib.layers.xavier_initializer())
+                #w = tf.Variable(tf.truncated_normal([1, prev_dim_phoneme,num_phoneme], stddev=0.1), name="w")
+                b = tf.Variable(tf.constant(0.1, shape=[num_phoneme]), name="b")
+
+                # Apply L2 loss
+                l2_loss_phoneme += tf.nn.l2_loss(w)
+                l2_loss_phoneme += tf.nn.l2_loss(b)
+                
+                
+                conv = tf.nn.conv1d(h_phoneme, w, stride=1, padding="SAME", name="conv-layer-%s" % i)
+                scores_phoneme = tf.nn.bias_add(conv, b, name="scores")
+
+                #scores_phoneme = tf.nn.xw_plus_b(h_phoneme, w, b, name="scores")
+
+                predictions_phoneme = tf.argmax(scores_phoneme, 1, name="predictions")
+
+            losses_phoneme = tf.nn.softmax_cross_entropy_with_logits(logits=scores_phoneme, labels=posterior)
+            
+            
+            # Normal loss function
+            loss_phoneme = tf.reduce_mean(losses_phoneme, name="phoneme_loss")
+            loss_phoneme = tf.reduce_mean(loss_phoneme, name="phoneme_loss")
+
+
+            #### speaker recognition network
+            prev_dim /= 2
+            prev_dim = int(prev_dim)
+
+            # apply self attention
+            with tf.variable_scope("attention"):
+                b = tf.Variable(tf.constant(0.1, shape=[prev_dim]), name="b")
+                v = tf.Variable(tf.constant(0.1, shape=[prev_dim]), name="v")
+                # Note: the dimension of the w needs more experiments, here we simply use a square matrix
+                w = tf.Variable(tf.truncated_normal([prev_dim, prev_dim], stddev=0.1), name="w")
+                h1, h2 = tf.split(h, 2, axis=2)
+                non_linearity = tf.nn.tanh(tf.nn.bias_add(tf.einsum('ijk,kl->ijl', h1, w), b), name="non_linearity")
+                attention = tf.nn.softmax(tf.einsum('ijk,k->ij', non_linearity, v), name="attention")
+
+            h_m = tf.einsum('ijk,ij->ik', h2, attention)
+            h_s = tf.subtract(tf.einsum('ijk,ij->ik', tf.square(h2), attention), tf.square(h_m), name="stats_var")
+            h = tf.concat([h_m, tf.sqrt(h_s + VAR2STD_EPSILON)], 1)
+
+            prev_dim = prev_dim * 2
+
+            # Embedding layers
+            for i, out_dim in enumerate(embedding_sizes):
+                with tf.variable_scope("embed_layer-%s" % i):
+                    w = tf.Variable(tf.truncated_normal([prev_dim, out_dim], stddev=0.1), name="w")
+                    b = tf.Variable(tf.constant(0.1, shape=[out_dim]), name="b")
+
+                    h = tf.nn.xw_plus_b(h, w, b, name="scores")
+
+                    # Apply L2 loss
+                    if i == 0:
+                        l2_loss += 0.1 * tf.nn.l2_loss(w)
+                        l2_loss += 0.1 * tf.nn.l2_loss(b)
+                    else:
+                        l2_loss += tf.nn.l2_loss(w)
+                        l2_loss += tf.nn.l2_loss(b)
+
+                    h = tf.nn.leaky_relu(h, alpha=0.2, name='lrelu')
+                    h = batch_norm_wrapper(h, decay=0.95, is_training=self.phase)
+
+                    prev_dim = out_dim
+
+            # Softmax
+            with tf.variable_scope("output"):
+                w = tf.get_variable("w", shape=[prev_dim, num_classes],
+                                    initializer=tf.contrib.layers.xavier_initializer())
+                #w = tf.Variable(tf.truncated_normal([prev_dim,num_classes], stddev=0.1), name="w")
+                b = tf.Variable(tf.constant(0.1, shape=[num_classes]), name="b")
+
+                # Apply L2 loss
+                l2_loss += tf.nn.l2_loss(w)
+                l2_loss += tf.nn.l2_loss(b)
+
+                scores = tf.nn.xw_plus_b(h, w, b, name="scores")
+
+                predictions = tf.argmax(scores, 1, name="predictions")
+
+            losses = tf.nn.softmax_cross_entropy_with_logits(logits=scores, labels=self.input_y)
+
+            # Normal loss function
+            loss = tf.reduce_mean(losses, name="orig_loss")
+            
+
+            self.loss = tf.reduce_mean(loss + beta * l2_loss + (loss_phoneme + beta * l2_loss_phoneme ), name='loss')
+
+            update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+            with tf.control_dependencies(update_ops):
+                self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.loss,
+                                                                                                   name="optimizer")
+
+            with tf.name_scope("accuracy"):
+                correct_predictions = tf.equal(predictions, tf.argmax(self.input_y, 1))
+                self.accuracy = tf.reduce_mean(tf.cast(correct_predictions, "float"), name="accuracy")
+
+        set_cuda_visible_devices(use_gpu=False, logger=logger)
+        with tf.Session(graph=self.graph, config=tf.ConfigProto(allow_soft_placement=True,
+                                                                log_device_placement=False)) as sess:
+            if logger is not None:
+                logger.info("Start initializing the graph ...")
+            sess.run(tf.global_variables_initializer())
+            Model.save_model(sess, output_dir, logger)
+
+        if logger is not None:
+            logger.info("Building finished.")
+            
+            
+            
+            
+
+class ModelL2LossWithoutDropoutLReluAttentionPhonemeMultitaskPequal(Model):  
+
+    def __init__(self):
+        super(ModelL2LossWithoutDropoutLReluAttentionPhonemeMultitaskPequal, self).__init__()
+
+    def build_model(self, num_classes, input_feature_dim, output_dir, logger=None):
+
+        layer_sizes = [96, 512, 512, 512, 6 * 512]
+        kernel_sizes = [5, 5, 7, 1, 1]
+        embedding_sizes = [512, 512]
+        beta = 0.0002
+        mfcc_dim=23
+
+        if logger is not None:
+            logger.info("Start building the model ...")
+
+        tf.reset_default_graph()
+        self.graph = tf.Graph()
+
+        with self.graph.as_default():
+
+            self.num_classes = num_classes
+
+            # placeholder for parameter
+            self.learning_rate = tf.placeholder(tf.float32, name="learning_rate")
+            self.dropout_keep_prob = tf.placeholder(tf.float32, name="dropout_keep_prob")
+            self.phase = tf.placeholder(tf.bool, name="phase")
+
+            # Placeholders for regular data
+            self.input_x = tf.placeholder(tf.float32, [None, None, input_feature_dim], name="input_x")
+            self.input_y = tf.placeholder(tf.float32, [None, num_classes], name="input_y")
+
+            
+            l2_loss = tf.constant(0.0)
+            l2_loss_phoneme = tf.constant(0.0)
+            h_share = self.input_x[:, :, 0:mfcc_dim]
+            poster=self.input_x[:, :, mfcc_dim:]
+            
+            
+            poster_temp=tf.gather(poster, indices=[0,33,34], axis=2)
+            posterior=tf.concat((tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2), tf.expand_dims(poster[:,:,1],axis=2)),axis=2)
+
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,2],axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[3,4,5,12,25], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[6,8,14], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[7,18], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[13,15,32,29], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            
+            poster_temp=tf.gather(poster, indices=[9,35,38,39], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+
+            poster_temp=tf.gather(poster, indices=[10,11], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,16],axis=2)),axis=2)
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,17],axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[19,26], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[20,37], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[21,23], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,22],axis=2)),axis=2)
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,24],axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[27,36], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,28],axis=2)),axis=2)
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,30],axis=2)),axis=2)
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,31],axis=2)),axis=2)
+           
+            
+            num_phoneme=posterior.shape[2].value
+            
+            
+            
+            # Frame level TDNN Layer
+            prev_dim = mfcc_dim
+            for i, (kernel_size, layer_size) in enumerate(zip(kernel_sizes, layer_sizes)):
+                
+                if i == 0 or i==1 or i==2 or i==3:
+                    if i==0:
+                        with tf.variable_scope("frame_level_share-%s" % i):
+                            kernel_shape = [kernel_size, prev_dim, num_phoneme*layer_size]
+                            w = tf.Variable(tf.truncated_normal(kernel_shape, stddev=0.1), name="w")
+                            b = tf.Variable(tf.constant(0.1, shape=[num_phoneme*layer_size]), name="b")
+    
+                            conv = tf.nn.conv1d(h_share, w, stride=1, padding="SAME", name="conv-layer-%s" % i)
+                            h_share = tf.nn.bias_add(conv, b)     # shape [None, None, num_phoneme*layer_size]
+    
+    
+                            # Apply nonlinearity and BN
+                            h_share = tf.nn.leaky_relu(h_share, alpha=0.2, name='lrelu')
+    
+    
+                            
+                            h_splits = tf.split(h_share, num_or_size_splits=num_phoneme, axis=2)
+                            h_reshape=tf.expand_dims(h_splits[0], axis=2)
+                            for q in range(1,len(h_splits)):
+                                h_q=tf.expand_dims(h_splits[q], axis=2)
+                                h_reshape=tf.concat([h_reshape, h_q], axis=2)    #[None, None, num_phoneme, layer_size]
+    
+                            h_share = tf.reduce_mean( h_reshape, axis=2, name='layeroutput')  #[None, None, layer_size]
+                            
+                            h_share = batch_norm_wrapper(h_share, decay=0.95, is_training=self.phase)
+    
+                            prev_dim = layer_size
+                        
+                    else:
+                        with tf.variable_scope("frame_level_share-%s" % i):
+                            kernel_shape = [kernel_size, prev_dim, layer_size]
+                            w = tf.Variable(tf.truncated_normal(kernel_shape, stddev=0.1), name="w")
+                            b = tf.Variable(tf.constant(0.1, shape=[layer_size]), name="b")
+    
+                            conv = tf.nn.conv1d(h_share, w, stride=1, padding="SAME", name="conv-layer-%s" % i)
+                            h_share = tf.nn.bias_add(conv, b)
+
+                            # Apply nonlinearity and BN
+                            h_share = tf.nn.leaky_relu(h_share, alpha=0.2, name='lrelu')
+                            h_share = batch_norm_wrapper(h_share, decay=0.95, is_training=self.phase)
+
+                            prev_dim = layer_size
+                    
+                else:
+                    h=h_share
+                    h_phoneme = h_share
+                    prev_dim_phoneme = prev_dim
+                    with tf.variable_scope("frame_level_speaker-%s" % i):
+                        kernel_shape = [kernel_size, prev_dim_phoneme, layer_size]
+                        w = tf.Variable(tf.truncated_normal(kernel_shape, stddev=0.1), name="w")
+                        b = tf.Variable(tf.constant(0.1, shape=[layer_size]), name="b")
+    
+                        conv = tf.nn.conv1d(h, w, stride=1, padding="SAME", name="conv-layer-%s" % i)
+                        h = tf.nn.bias_add(conv, b)
+
+                        # Apply nonlinearity and BN
+                        h = tf.nn.leaky_relu(h, alpha=0.2, name='lrelu')
+                        h = batch_norm_wrapper(h, decay=0.95, is_training=self.phase)
+
+                        prev_dim_phoneme = layer_size
+                
+                    with tf.variable_scope("frame_level_phoneme-%s" % i):
+                        kernel_shape = [kernel_size, prev_dim, layer_size]
+                        w = tf.Variable(tf.truncated_normal(kernel_shape, stddev=0.1), name="w")
+                        b = tf.Variable(tf.constant(0.1, shape=[layer_size]), name="b")
+    
+                        conv = tf.nn.conv1d(h_phoneme, w, stride=1, padding="SAME", name="conv-layer-%s" % i)
+                        h_phoneme = tf.nn.bias_add(conv, b)
+
+                        # Apply nonlinearity and BN
+                        h_phoneme = tf.nn.leaky_relu(h_phoneme, alpha=0.2, name='lrelu')
+                        h_phoneme = batch_norm_wrapper(h_phoneme, decay=0.95, is_training=self.phase)
+
+                        prev_dim = layer_size
+
+            #### phoneme recognition network
+            # frame level DNN layers
+            for i, out_dim in enumerate(embedding_sizes):
+                with tf.variable_scope("phoneme_embed_layer-%s" % i):
+                    w = tf.Variable(tf.truncated_normal([1, prev_dim_phoneme, out_dim], stddev=0.1), name="w")
+                    b = tf.Variable(tf.constant(0.1, shape=[out_dim]), name="b")
+                    
+                    conv = tf.nn.conv1d(h_phoneme, w, stride=1, padding="SAME", name="conv-layer-%s" % i)
+                    h_phoneme = tf.nn.bias_add(conv, b)
+ 
+
+                    # Apply L2 loss
+                    if i == 0:
+                        l2_loss_phoneme += 0.1 * tf.nn.l2_loss(w)
+                        l2_loss_phoneme += 0.1 * tf.nn.l2_loss(b)
+                    else:
+                        l2_loss_phoneme += tf.nn.l2_loss(w)
+                        l2_loss_phoneme += tf.nn.l2_loss(b)
+
+                    h_phoneme = tf.nn.leaky_relu(h_phoneme, alpha=0.2, name='lrelu')
+                    h_phoneme = batch_norm_wrapper(h_phoneme, decay=0.95, is_training=self.phase)
+
+                    prev_dim_phoneme = out_dim
+
+            # Softmax
+            with tf.variable_scope("phoneme_output"):
+                w = tf.get_variable("w", shape=[1, prev_dim_phoneme, num_phoneme],
+                                    initializer=tf.contrib.layers.xavier_initializer())
+                #w = tf.Variable(tf.truncated_normal([1, prev_dim_phoneme,num_phoneme], stddev=0.1), name="w")
+                b = tf.Variable(tf.constant(0.1, shape=[num_phoneme]), name="b")
+
+                # Apply L2 loss
+                l2_loss_phoneme += tf.nn.l2_loss(w)
+                l2_loss_phoneme += tf.nn.l2_loss(b)
+                
+                
+                conv = tf.nn.conv1d(h_phoneme, w, stride=1, padding="SAME", name="conv-layer-%s" % i)
+                scores_phoneme = tf.nn.bias_add(conv, b, name="scores")
+
+                #scores_phoneme = tf.nn.xw_plus_b(h_phoneme, w, b, name="scores")
+
+                predictions_phoneme = tf.argmax(scores_phoneme, 1, name="predictions")
+
+            losses_phoneme = tf.nn.softmax_cross_entropy_with_logits(logits=scores_phoneme, labels=posterior)
+            
+            
+            # Normal loss function
+            loss_phoneme = tf.reduce_mean(losses_phoneme, name="phoneme_loss")
+            loss_phoneme = tf.reduce_mean(loss_phoneme, name="phoneme_loss")
+
+
+            #### speaker recognition network
+            prev_dim /= 2
+            prev_dim = int(prev_dim)
+
+            # apply self attention
+            with tf.variable_scope("attention"):
+                b = tf.Variable(tf.constant(0.1, shape=[prev_dim]), name="b")
+                v = tf.Variable(tf.constant(0.1, shape=[prev_dim]), name="v")
+                # Note: the dimension of the w needs more experiments, here we simply use a square matrix
+                w = tf.Variable(tf.truncated_normal([prev_dim, prev_dim], stddev=0.1), name="w")
+                h1, h2 = tf.split(h, 2, axis=2)
+                non_linearity = tf.nn.tanh(tf.nn.bias_add(tf.einsum('ijk,kl->ijl', h1, w), b), name="non_linearity")
+                attention = tf.nn.softmax(tf.einsum('ijk,k->ij', non_linearity, v), name="attention")
+
+            h_m = tf.einsum('ijk,ij->ik', h2, attention)
+            h_s = tf.subtract(tf.einsum('ijk,ij->ik', tf.square(h2), attention), tf.square(h_m), name="stats_var")
+            h = tf.concat([h_m, tf.sqrt(h_s + VAR2STD_EPSILON)], 1)
+
+            prev_dim = prev_dim * 2
+
+            # Embedding layers
+            for i, out_dim in enumerate(embedding_sizes):
+                with tf.variable_scope("embed_layer-%s" % i):
+                    w = tf.Variable(tf.truncated_normal([prev_dim, out_dim], stddev=0.1), name="w")
+                    b = tf.Variable(tf.constant(0.1, shape=[out_dim]), name="b")
+
+                    h = tf.nn.xw_plus_b(h, w, b, name="scores")
+
+                    # Apply L2 loss
+                    if i == 0:
+                        l2_loss += 0.1 * tf.nn.l2_loss(w)
+                        l2_loss += 0.1 * tf.nn.l2_loss(b)
+                    else:
+                        l2_loss += tf.nn.l2_loss(w)
+                        l2_loss += tf.nn.l2_loss(b)
+
+                    h = tf.nn.leaky_relu(h, alpha=0.2, name='lrelu')
+                    h = batch_norm_wrapper(h, decay=0.95, is_training=self.phase)
+
+                    prev_dim = out_dim
+
+            # Softmax
+            with tf.variable_scope("output"):
+                w = tf.get_variable("w", shape=[prev_dim, num_classes],
+                                    initializer=tf.contrib.layers.xavier_initializer())
+                #w = tf.Variable(tf.truncated_normal([prev_dim,num_classes], stddev=0.1), name="w")
+                b = tf.Variable(tf.constant(0.1, shape=[num_classes]), name="b")
+
+                # Apply L2 loss
+                l2_loss += tf.nn.l2_loss(w)
+                l2_loss += tf.nn.l2_loss(b)
+
+                scores = tf.nn.xw_plus_b(h, w, b, name="scores")
+
+                predictions = tf.argmax(scores, 1, name="predictions")
+
+            losses = tf.nn.softmax_cross_entropy_with_logits(logits=scores, labels=self.input_y)
+
+            # Normal loss function
+            loss = tf.reduce_mean(losses, name="orig_loss")
+            
+
+            self.loss = tf.reduce_mean(loss + beta * l2_loss + (loss_phoneme + beta * l2_loss_phoneme ), name='loss')
+
+            update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+            with tf.control_dependencies(update_ops):
+                self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.loss,
+                                                                                                   name="optimizer")
+
+            with tf.name_scope("accuracy"):
+                correct_predictions = tf.equal(predictions, tf.argmax(self.input_y, 1))
+                self.accuracy = tf.reduce_mean(tf.cast(correct_predictions, "float"), name="accuracy")
+
+        set_cuda_visible_devices(use_gpu=False, logger=logger)
+        with tf.Session(graph=self.graph, config=tf.ConfigProto(allow_soft_placement=True,
+                                                                log_device_placement=False)) as sess:
+            if logger is not None:
+                logger.info("Start initializing the graph ...")
+            sess.run(tf.global_variables_initializer())
+            Model.save_model(sess, output_dir, logger)
+
+        if logger is not None:
+            logger.info("Building finished.")
+            
+     
+
+class ModelL2LossWithoutDropoutLReluAttentionPhonemeVector(Model):  
+
+    def __init__(self):
+        super(ModelL2LossWithoutDropoutLReluAttentionPhonemeVector, self).__init__()
+
+    def build_model(self, num_classes, input_feature_dim, output_dir, logger=None):
+
+        layer_sizes = [512, 512, 512, 512, 6 * 512]
+        kernel_sizes = [5, 5, 7, 1, 1]
+        embedding_sizes = [512, 512]
+        beta = 0.0002
+        mfcc_dim=23
+
+        if logger is not None:
+            logger.info("Start building the model ...")
+
+        tf.reset_default_graph()
+        self.graph = tf.Graph()
+
+        with self.graph.as_default():
+
+            self.num_classes = num_classes
+
+            # placeholder for parameter
+            self.learning_rate = tf.placeholder(tf.float32, name="learning_rate")
+            self.dropout_keep_prob = tf.placeholder(tf.float32, name="dropout_keep_prob")
+            self.phase = tf.placeholder(tf.bool, name="phase")
+
+            # Placeholders for regular data
+            self.input_x = tf.placeholder(tf.float32, [None, None, input_feature_dim], name="input_x")
+            self.input_y = tf.placeholder(tf.float32, [None, num_classes], name="input_y")
+
+            
+            l2_loss = tf.constant(0.0)
+            h = self.input_x[:, :, 0:mfcc_dim]
+            poster=self.input_x[:, :, mfcc_dim:]
+            
+            
+            poster_temp=tf.gather(poster, indices=[0,33,34], axis=2)
+            posterior=tf.concat((tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2), tf.expand_dims(poster[:,:,1],axis=2)),axis=2)
+
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,2],axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[3,4,5,12,25], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[6,8,14], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[7,18], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[13,15,32,29], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            
+            poster_temp=tf.gather(poster, indices=[9,35,38,39], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+
+            poster_temp=tf.gather(poster, indices=[10,11], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,16],axis=2)),axis=2)
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,17],axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[19,26], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[20,37], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[21,23], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,22],axis=2)),axis=2)
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,24],axis=2)),axis=2)
+            
+            poster_temp=tf.gather(poster, indices=[27,36], axis=2)
+            posterior=tf.concat((posterior,tf.expand_dims(tf.reduce_sum(poster_temp,axis=2),axis=2)),axis=2)
+            
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,28],axis=2)),axis=2)
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,30],axis=2)),axis=2)
+            posterior=tf.concat((posterior, tf.expand_dims(poster[:,:,31],axis=2)),axis=2)
+           
+
+            num_phoneme=posterior.shape[2].value
+
+            h=tf.concat((h, posterior),axis=2)
+            feature_dim=h.shape[2].value
+            
+            
+            # Frame level information Layer
+            prev_dim = feature_dim
+            for i, (kernel_size, layer_size) in enumerate(zip(kernel_sizes, layer_sizes)):
+                with tf.variable_scope("frame_level_info_layer-%s" % i):
+                    kernel_shape = [kernel_size, prev_dim, layer_size]
+                    w = tf.Variable(tf.truncated_normal(kernel_shape, stddev=0.1), name="w")
+                    b = tf.Variable(tf.constant(0.1, shape=[layer_size]), name="b")
+
+                    conv = tf.nn.conv1d(h, w, stride=1, padding="SAME", name="conv-layer-%s" % i)
+                    h = tf.nn.bias_add(conv, b)
+
+                    # Apply nonlinearity and BN
+                    h = tf.nn.leaky_relu(h, alpha=0.2, name='lrelu')
+                    h = batch_norm_wrapper(h, decay=0.95, is_training=self.phase)
+
+                    prev_dim = layer_size
+
+            prev_dim /= 2
+            prev_dim = int(prev_dim)
+
+            # apply self attention
+            with tf.variable_scope("attention"):
+                b = tf.Variable(tf.constant(0.1, shape=[prev_dim]), name="b")
+                v = tf.Variable(tf.constant(0.1, shape=[prev_dim]), name="v")
+                # Note: the dimension of the w needs more experiments, here we simply use a square matrix
+                w = tf.Variable(tf.truncated_normal([prev_dim, prev_dim], stddev=0.1), name="w")
+                h1, h2 = tf.split(h, 2, axis=2)
+                non_linearity = tf.nn.tanh(tf.nn.bias_add(tf.einsum('ijk,kl->ijl', h1, w), b), name="non_linearity")
+                attention = tf.nn.softmax(tf.einsum('ijk,k->ij', non_linearity, v), name="attention")
+
+            h_m = tf.einsum('ijk,ij->ik', h2, attention)
+            h_s = tf.subtract(tf.einsum('ijk,ij->ik', tf.square(h2), attention), tf.square(h_m), name="stats_var")
+            h = tf.concat([h_m, tf.sqrt(h_s + VAR2STD_EPSILON)], 1)
+
+            prev_dim = prev_dim * 2
+
+            # Embedding layers
+            for i, out_dim in enumerate(embedding_sizes):
+                with tf.variable_scope("embed_layer-%s" % i):
+                    w = tf.Variable(tf.truncated_normal([prev_dim, out_dim], stddev=0.1), name="w")
+                    b = tf.Variable(tf.constant(0.1, shape=[out_dim]), name="b")
+
+                    h = tf.nn.xw_plus_b(h, w, b, name="scores")
+
+                    # Apply L2 loss
+                    if i == 0:
+                        l2_loss += 0.1 * tf.nn.l2_loss(w)
+                        l2_loss += 0.1 * tf.nn.l2_loss(b)
+                    else:
+                        l2_loss += tf.nn.l2_loss(w)
+                        l2_loss += tf.nn.l2_loss(b)
+
+                    h = tf.nn.leaky_relu(h, alpha=0.2, name='lrelu')
+                    h = batch_norm_wrapper(h, decay=0.95, is_training=self.phase)
+
+                    prev_dim = out_dim
+
+            # Softmax
+            with tf.variable_scope("output"):
+                w = tf.get_variable("w", shape=[prev_dim, num_classes],
+                                    initializer=tf.contrib.layers.xavier_initializer())
+                #w = tf.Variable(tf.truncated_normal([prev_dim,num_classes], stddev=0.1), name="w")
+                b = tf.Variable(tf.constant(0.1, shape=[num_classes]), name="b")
+
+                # Apply L2 loss
+                l2_loss += tf.nn.l2_loss(w)
+                l2_loss += tf.nn.l2_loss(b)
+
+                scores = tf.nn.xw_plus_b(h, w, b, name="scores")
+
+                predictions = tf.argmax(scores, 1, name="predictions")
+
+            losses = tf.nn.softmax_cross_entropy_with_logits(logits=scores, labels=self.input_y)
+
+            # Normal loss function
+            loss = tf.reduce_mean(losses, name="orig_loss")
+            self.loss = tf.reduce_mean(loss + beta * l2_loss, name='loss')
+
+            update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+            with tf.control_dependencies(update_ops):
+                self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.loss,
+                                                                                                   name="optimizer")
+
+            with tf.name_scope("accuracy"):
+                correct_predictions = tf.equal(predictions, tf.argmax(self.input_y, 1))
+                self.accuracy = tf.reduce_mean(tf.cast(correct_predictions, "float"), name="accuracy")
+
+        set_cuda_visible_devices(use_gpu=False, logger=logger)
+        with tf.Session(graph=self.graph, config=tf.ConfigProto(allow_soft_placement=True,
+                                                                log_device_placement=False)) as sess:
+            if logger is not None:
+                logger.info("Start initializing the graph ...")
+            sess.run(tf.global_variables_initializer())
+            Model.save_model(sess, output_dir, logger)
+
+        if logger is not None:
+            logger.info("Building finished.")
